@@ -6,6 +6,8 @@ import (
 	"sync"
 
 	"github.com/GrayHat12/goga/utils"
+	"github.com/GrayHat12/goslice/commons"
+	"github.com/GrayHat12/goslice/inplace"
 )
 
 var NODE_INDEX = 0
@@ -146,7 +148,7 @@ func (node *Node) AddIncomingConnection(connection Connection) {
 func (node *Node) RemoveIncomingConnection(connection *Connection) {
 	node.threadLock.Lock()
 	defer node.threadLock.Unlock()
-	node.incomingConnections = utils.Filter(node.incomingConnections, func(item Connection, _ int, _ []Connection) bool {
+	node.incomingConnections = *inplace.Filter(&node.incomingConnections, func(item *Connection, _ int, _ *[]Connection) bool {
 		return item.GetId() != connection.GetId()
 	})
 }
@@ -155,7 +157,7 @@ func (node *Node) IsInvalidChildNode(child *Node) bool {
 	if node.id == child.id {
 		return true
 	}
-	if utils.Find(node.incomingConnections, func(item Connection, _ int, _ []Connection) bool {
+	if commons.Find(&node.incomingConnections, func(item *Connection, _ int, _ *[]Connection) bool {
 		return item.from.id == node.id || item.from.IsInvalidChildNode(node)
 	}) != nil {
 		return true

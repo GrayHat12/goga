@@ -1,12 +1,13 @@
 package brain
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"math/rand"
 	"sync"
 
-	"github.com/GrayHat12/goga/utils"
+	"github.com/GrayHat12/goslice/commons"
 )
 
 var BRAIN_INDEX = 0
@@ -69,26 +70,36 @@ func (brain *Brain) FeedForward(inputs []float64) float64 {
 func (brain *Brain) Mutate() {
 	brain.threadLock.Lock()
 	defer brain.threadLock.Unlock()
-	mutateNode := func(node Node, _ int, _ []Node) {
-		if rand.Float64() < MUTATION_PROBABILITY {
-			node.Mutate()
-			utils.ForEach(node.outgoingConnections, func(x Connection, _ int, _ []Connection) {
-				x.Mutate()
-			})
-			if rand.Float64() < CONNECTION_SPLIT_PROBABILITY*(5.0-float64(len(brain.hiddenNodes))/3.0) {
-				newNode := NewNode(HIDDEN)
-				newNode.SetWeight(1)
-				newNode.SetBias(0)
-				connectionToSplit := node.outgoingConnections[int(math.Floor(rand.Float64()*float64(len(node.outgoingConnections))))]
-				connection := NewConnection(newNode, connectionToSplit.to)
-				connection.SetStrength(1)
-				connectionToSplit.Update(&node, newNode)
-				brain.hiddenNodes = append(brain.hiddenNodes, *newNode)
+	mutateNode := func(ctx context.Context, node *Node, _ int, _ *[]Node) {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			if rand.Float64() < MUTATION_PROBABILITY {
+				node.Mutate()
+				commons.ForEach(context.Background(), &node.outgoingConnections, func(ctx context.Context, x *Connection, _ int, _ *[]Connection) {
+					select {
+					case <-ctx.Done():
+						return
+					default:
+						x.Mutate()
+					}
+				})
+				if rand.Float64() < CONNECTION_SPLIT_PROBABILITY*(5.0-float64(len(brain.hiddenNodes))/3.0) {
+					newNode := NewNode(HIDDEN)
+					newNode.SetWeight(1)
+					newNode.SetBias(0)
+					connectionToSplit := node.outgoingConnections[int(math.Floor(rand.Float64()*float64(len(node.outgoingConnections))))]
+					connection := NewConnection(newNode, connectionToSplit.to)
+					connection.SetStrength(1)
+					connectionToSplit.Update(node, newNode)
+					brain.hiddenNodes = append(brain.hiddenNodes, *newNode)
+				}
 			}
 		}
 	}
-	utils.ForEach(brain.inputNodes, mutateNode)
-	utils.ForEach(brain.hiddenNodes, mutateNode)
+	commons.ForEach(context.Background(), &brain.inputNodes, mutateNode)
+	commons.ForEach(context.Background(), &brain.hiddenNodes, mutateNode)
 
 	if rand.Float64() < NEW_CONNECTION_PROBABILITY {
 		possibleNodeRange1 := len(brain.inputNodes) + len(brain.hiddenNodes)
@@ -105,14 +116,20 @@ func (brain *Brain) Mutate() {
 		// })
 		possibleNodes2 := []*Node{}
 		validNodeChannel := make(chan *Node, len(brain.hiddenNodes))
-		utils.ForEach(brain.hiddenNodes, func(x Node, _ int, _ []Node) {
-			if x.id != randomPick1.id && !randomPick1.IsInvalidChildNode(&x) {
-				validNodeChannel <- &x
+		commons.ForEach(context.Background(), &brain.hiddenNodes, func(ctx context.Context, x *Node, _ int, _ *[]Node) {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				if x.id != randomPick1.id && !randomPick1.IsInvalidChildNode(x) {
+					validNodeChannel <- x
+				}
 			}
 		})
-		for item := range validNodeChannel {
-			possibleNodes2 = append(possibleNodes2, item)
+		for range len(brain.hiddenNodes) {
+			possibleNodes2 = append(possibleNodes2, <-validNodeChannel)
 		}
+		close(validNodeChannel)
 		if len(possibleNodes2) > 0 {
 			randomPick2 := possibleNodes2[int(math.Floor(rand.Float64()*float64(len(possibleNodes2))))]
 			NewConnection(&randomPick1, randomPick2)
