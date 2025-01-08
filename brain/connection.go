@@ -3,61 +3,66 @@ package brain
 import (
 	"fmt"
 	"math/rand"
-	"sync"
 
-	"github.com/GrayHat12/goga/utils"
+	"github.com/GrayHat12/goga/maths"
 )
 
-type Connection struct {
-	threadLock *sync.Mutex
-	strength   float64
-	from       *Node
-	to         *Node
+type GConnection struct {
+	session  *Session
+	strength float64
+	from     *GNode
+	to       *GNode
 }
 
-func NewConnection(from, to *Node) *Connection {
-	connection := &Connection{
-		threadLock: &sync.Mutex{},
-		strength:   utils.GaussianRandom(nil),
-		from:       from,
-		to:         to,
+func NewConnection(session *Session, from *GNode, to *GNode) GConnection {
+	connection := GConnection{
+		session:  session,
+		strength: maths.GaussianRandom(0, 1),
+		from:     from,
+		to:       to,
 	}
-	connection.from.AddOutgoingConnection(*connection)
-	connection.to.AddOutgoingConnection(*connection)
+	connection.from.AddOutgoingConnection(connection)
+	connection.to.AddIncomingConnection(connection)
 	return connection
 }
 
-func (connection *Connection) GetId() string {
-	return fmt.Sprintf("connection-%s:%s", connection.from.id, connection.to.id)
+func (connection GConnection) GetStrength() float64 {
+	return connection.strength
 }
 
-func (connection *Connection) SetStrength(strength float64) {
-	connection.threadLock.Lock()
-	defer connection.threadLock.Unlock()
+func (connection GConnection) GetFrom() *GNode {
+	return connection.from
+}
+
+func (connection GConnection) GetTo() *GNode {
+	return connection.to
+}
+
+func (connection GConnection) GetId() string {
+	return fmt.Sprintf("connection-%s:%s", connection.from.GetId(), connection.to.GetId())
+}
+
+func (connection *GConnection) SetStrength(strength float64) {
 	connection.strength = strength
 }
 
-func (connection *Connection) GetOutput() float64 {
+func (connection GConnection) GetOutput() float64 {
 	val := connection.from.GetOutput() * connection.strength
-	if connection.from.nodeType == INPUT {
+	if connection.from.GetNodeType() == INPUT_NODE {
 		return val
 	} else {
-		return utils.Tanh(val)
+		return maths.Tanh(val)
 	}
 }
 
-func (connection *Connection) Update(from, to *Node) {
-	connection.threadLock.Lock()
-	defer connection.threadLock.Unlock()
+func (connection *GConnection) UpdateConnection(from *GNode, to *GNode) {
 	connection.from = from
 	connection.to.RemoveIncomingConnection(connection)
 	connection.to = to
 }
 
-func (connection *Connection) Mutate() {
-	connection.threadLock.Lock()
-	defer connection.threadLock.Unlock()
+func (connection *GConnection) Mutate() {
 	if rand.Float64() < CONNECTION_STRENGTH_MUTATE_PROBABILITY {
-		connection.strength += utils.GaussianRandom(nil) * CONNECTION_STRENGTH_MUTATION_SCOPE
+		connection.strength += maths.GaussianRandom(0, 1) * CONNECTION_STRENGTH_MUTATION_SCOPE
 	}
 }
