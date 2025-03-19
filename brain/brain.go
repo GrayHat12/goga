@@ -113,3 +113,15 @@ func (brain Brain) GetId() string {
 	defer brain.lock.Unlock()
 	return brain.id
 }
+
+func (brain Brain) CountHiddenNodes() int {
+	return len(brain.hiddenNodes)
+}
+
+func (brain Brain) CountInputNdes() int {
+	return len(brain.inputNodes)
+}
+
+func (brain Brain) CountOutputNodes() int {
+	return len(brain.outputNodes)
+}
