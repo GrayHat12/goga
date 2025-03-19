@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/GrayHat12/goga/maths"
+	"github.com/GrayHat12/goslice/outofplace"
 )
 
 type Brain struct {
@@ -124,4 +125,86 @@ func (brain Brain) CountInputNdes() int {
 
 func (brain Brain) CountOutputNodes() int {
 	return len(brain.outputNodes)
+}
+
+func (brain Brain) Export() *BrainExport {
+	brain.lock.Lock()
+	defer brain.lock.Unlock()
+	nodeMap := func(node *GNode, _ int, _ *[]GNode) *NodeExport {
+		return &NodeExport{
+			Id:     node.id,
+			Weight: node.weight,
+			Bias:   node.bias,
+			Connections: outofplace.Map(node.outgoingConnections, func(connection *GConnection, _ int, _ *[]GConnection) *ConnectionExport {
+				return &ConnectionExport{
+					From:     connection.from.id,
+					To:       connection.to.id,
+					Strength: connection.strength,
+				}
+			}),
+		}
+	}
+	return &BrainExport{
+		Version:     EXPORT_VERSION,
+		Id:          brain.id,
+		InputNodes:  outofplace.Map(brain.inputNodes, nodeMap),
+		HiddenNodes: outofplace.Map(brain.hiddenNodes, nodeMap),
+		OutputNodes: outofplace.Map(brain.outputNodes, nodeMap),
+	}
+}
+
+func (brain *Brain) Import(exported *BrainExport) {
+	brain.lock.Lock()
+	defer brain.lock.Unlock()
+
+	brain.inputNodes = []GNode{}
+	brain.hiddenNodes = []GNode{}
+	brain.outputNodes = []GNode{}
+
+	nodeMapping := map[string]*GNode{}
+	pendingConnections := map[string]*ConnectionExport{}
+
+	// output node
+	for _, outputNodeExport := range exported.OutputNodes {
+		outputNode := NewNode(brain.session, OUTPUT_NODE)
+		outputNode.SetWeight(outputNodeExport.Weight)
+		outputNode.SetBias(outputNodeExport.Bias)
+
+		nodeMapping[outputNodeExport.Id] = &outputNode
+
+		brain.outputNodes = append(brain.outputNodes, outputNode)
+	}
+
+	// hidden node
+	for _, hiddenNodeExport := range exported.HiddenNodes {
+		hiddenNode := NewNode(brain.session, HIDDEN_NODE)
+		hiddenNode.SetWeight(hiddenNodeExport.Weight)
+		hiddenNode.SetBias(hiddenNodeExport.Bias)
+		for _, connectionExport := range hiddenNodeExport.Connections {
+			pendingConnections[fmt.Sprintf("%s-%s", connectionExport.From, connectionExport.To)] = &connectionExport
+		}
+
+		nodeMapping[hiddenNodeExport.Id] = &hiddenNode
+
+		brain.hiddenNodes = append(brain.hiddenNodes, hiddenNode)
+	}
+
+	// input node
+	for _, inputNodeExport := range exported.InputNodes {
+		inputNode := NewNode(brain.session, INPUT_NODE)
+		inputNode.SetWeight(inputNodeExport.Weight)
+		inputNode.SetBias(inputNodeExport.Bias)
+		for _, connectionExport := range inputNodeExport.Connections {
+			pendingConnections[fmt.Sprintf("%s-%s", connectionExport.From, connectionExport.To)] = &connectionExport
+		}
+
+		nodeMapping[inputNodeExport.Id] = &inputNode
+
+		brain.inputNodes = append(brain.inputNodes, inputNode)
+	}
+
+	// connections
+	for _, pendingConnection := range pendingConnections {
+		NewConnection(brain.session, nodeMapping[pendingConnection.From], nodeMapping[pendingConnection.To])
+	}
 }
