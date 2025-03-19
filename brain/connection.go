@@ -62,7 +62,7 @@ func (connection *GConnection) UpdateConnection(from *GNode, to *GNode) {
 }
 
 func (connection *GConnection) Mutate() {
-	if rand.Float64() < CONNECTION_STRENGTH_MUTATE_PROBABILITY {
-		connection.strength += maths.GaussianRandom(0, 1) * CONNECTION_STRENGTH_MUTATION_SCOPE
+	if rand.Float64() < connection.session.Config.CONNECTION_STRENGTH_MUTATE_PROBABILITY {
+		connection.strength += maths.GaussianRandom(0, 1) * connection.session.Config.CONNECTION_STRENGTH_MUTATION_SCOPE
 	}
 }

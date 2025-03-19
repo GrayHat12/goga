@@ -84,11 +84,11 @@ func (node *GNode) SetBias(bias float64) {
 }
 
 func (node *GNode) Mutate() {
-	if rand.Float64() < NODE_WEIGHT_MUTATE_PROBABILITY {
-		node.weight += maths.GaussianRandom(0, 1) * NODE_WEIGHT_MUTATION_SCOPE
+	if rand.Float64() < node.session.Config.NODE_WEIGHT_MUTATE_PROBABILITY {
+		node.weight += maths.GaussianRandom(0, 1) * node.session.Config.NODE_WEIGHT_MUTATION_SCOPE
 	}
-	if rand.Float64() < NODE_BIAS_MUTATE_PROBABILITY {
-		node.bias += maths.GaussianRandom(0, 1) * NODE_BIAS_MUTATION_SCOPE
+	if rand.Float64() < node.session.Config.NODE_BIAS_MUTATE_PROBABILITY {
+		node.bias += maths.GaussianRandom(0, 1) * node.session.Config.NODE_BIAS_MUTATION_SCOPE
 	}
 }
 

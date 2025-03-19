@@ -11,12 +11,17 @@ const (
 type Session struct {
 	Nodes  []GNode
 	Brains []Brain
+	Config *Config
 }
 
-func NewSession() *Session {
+func NewSession(config *Config) *Session {
+	if config == nil {
+		config = LoadDefaultConfig()
+	}
 	return &Session{
 		Nodes:  []GNode{},
 		Brains: []Brain{},
+		Config: config,
 	}
 }
 

@@ -62,12 +62,12 @@ func (brain *Brain) Mutate() {
 	brain.lock.Lock()
 	defer brain.lock.Unlock()
 	nodeMutate := func(node *GNode) {
-		if rand.Float64() < MUTATION_PROBABILITY {
+		if rand.Float64() < brain.session.Config.MUTATION_PROBABILITY {
 			node.Mutate()
 			for _, connection := range node.outgoingConnections {
 				connection.Mutate()
 			}
-			if rand.Float64() < CONNECTION_SPLIT_PROBABILITY*(5.0-float64(len(brain.hiddenNodes))/3.0) {
+			if rand.Float64() < brain.session.Config.CONNECTION_SPLIT_PROBABILITY*(5.0-float64(len(brain.hiddenNodes))/3.0) {
 				newNode := NewNode(brain.session, HIDDEN_NODE)
 				newNode.SetWeight(1)
 				newNode.SetBias(0)
@@ -85,7 +85,7 @@ func (brain *Brain) Mutate() {
 	for _, node := range brain.hiddenNodes {
 		nodeMutate(&node)
 	}
-	if rand.Float64() < NEW_CONNECTION_PROBABILITY {
+	if rand.Float64() < brain.session.Config.NEW_CONNECTION_PROBABILITY {
 		possibleNodes1 := []*GNode{}
 		for _, node := range brain.inputNodes {
 			possibleNodes1 = append(possibleNodes1, &node)
@@ -154,6 +154,9 @@ func (brain Brain) Export() *BrainExport {
 }
 
 func (brain *Brain) Import(exported *BrainExport) {
+	if exported.Version != EXPORT_VERSION {
+		panic("Trying to import incorrect brain. Version mismatch")
+	}
 	brain.lock.Lock()
 	defer brain.lock.Unlock()
 
